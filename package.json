@@ -1,0 +1,51 @@
+{
+  "name": "toggle-sftp-button",
+  "displayName": "Toggle SFTP Button",
+  "version": "1.0.0",
+  "main": "dist/extension.js",
+  "description": "Extensão para alternar perfis do SFTP rapidamente no VS Code.",
+  "author": "Glauber Fiammetti",
+  "publisher": "E-Open",
+  "license": "ISC",
+  "keywords": ["sftp", "toggle", "vscode", "remote"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/e-open/toggle-sftp-button"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Other"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "sftp-profile-switcher.toggleProfile",
+        "title": "Alternar Perfil SFTP"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "sftp-profile-switcher.toggleProfile",
+          "when": "editorTextFocus",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "activationEvents": ["onStartupFinished"],
+  "scripts": {
+    "compile": "tsc",
+    "build": "tsc -p .",
+    "watch": "tsc -w",
+    "package": "vsce package",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "@vscode/vsce": "^2.15.0",
+    "@types/vscode": "^1.1.37"
+  }
+}
+
