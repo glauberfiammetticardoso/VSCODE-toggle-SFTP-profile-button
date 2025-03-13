@@ -12,62 +12,76 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = require("vscode");
-const fs = require("fs");
 const path = require("path");
+let statusBarItem;
 function activate(context) {
-    let statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    statusBarItem.command = "toggle-sftp-button.toggleProfile";
-    statusBarItem.tooltip = "Clique para alternar o perfil SFTP";
-    function updateButtonLabel() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const workspaceFolders = vscode.workspace.workspaceFolders;
-            if (!workspaceFolders) {
-                statusBarItem.text = "$(sync) SFTP: N/A"; // Nenhuma pasta aberta
-                return;
-            }
-            const sftpConfigPath = path.join(workspaceFolders[0].uri.fsPath, ".vscode", "sftp.json");
-            if (!fs.existsSync(sftpConfigPath)) {
-                statusBarItem.text = "$(sync) SFTP: N/A"; // Arquivo não encontrado
-                return;
-            }
-            try {
-                const fileContent = fs.readFileSync(sftpConfigPath, "utf8");
-                const config = JSON.parse(fileContent);
-                const currentProfile = config.defaultProfile || "N/A";
-                statusBarItem.text = currentProfile === "prod" ? "$(sync) SFTP: PROD" : "$(sync) SFTP: DEV";
-            }
-            catch (error) {
-                statusBarItem.text = "$(sync) SFTP: ERRO";
-            }
-        });
-    }
-    updateButtonLabel(); // Atualiza ao iniciar
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    statusBarItem.command = 'extension.toggleSFTP';
+    context.subscriptions.push(statusBarItem);
+    updateButtonText();
     statusBarItem.show();
-    let disposable = vscode.commands.registerCommand("toggle-sftp-button.toggleProfile", () => __awaiter(this, void 0, void 0, function* () {
+    let disposable = vscode.commands.registerCommand('extension.toggleSFTP', () => {
+        toggleSFTPProfile();
+    });
+    context.subscriptions.push(disposable);
+}
+function updateButtonText() {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const workspaceFolder = (_a = vscode.workspace.workspaceFolders) === null || _a === void 0 ? void 0 : _a[0];
+        if (!workspaceFolder) {
+            statusBarItem.text = 'SFTP: Nenhuma pasta aberta';
+            return;
+        }
+        const configPath = path.join(workspaceFolder.uri.fsPath, '.vscode', 'sftp.json');
         try {
-            const workspaceFolders = vscode.workspace.workspaceFolders;
-            if (!workspaceFolders) {
+            const fileUri = vscode.Uri.file(configPath);
+            const fileContent = yield vscode.workspace.fs.readFile(fileUri);
+            const config = JSON.parse(fileContent.toString());
+            if (!config.profiles || !config.defaultProfile) {
+                statusBarItem.text = 'SFTP: Configuração inválida';
                 return;
             }
-            const sftpConfigPath = path.join(workspaceFolders[0].uri.fsPath, ".vscode", "sftp.json");
-            if (!fs.existsSync(sftpConfigPath)) {
-                return;
-            }
-            const document = yield vscode.workspace.openTextDocument(sftpConfigPath);
-            let config = JSON.parse(document.getText());
-            // Alterna entre 'dev' e 'prod'
-            config.defaultProfile = config.defaultProfile === "dev" ? "prod" : "dev";
-            // Atualiza o arquivo e força um "salvar"
-            const edit = new vscode.WorkspaceEdit();
-            edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), JSON.stringify(config, null, 4));
-            yield vscode.workspace.applyEdit(edit);
-            yield document.save();
-            updateButtonLabel(); // Atualiza o botão imediatamente
+            statusBarItem.text = `SFTP: ${config.defaultProfile.toUpperCase()}`;
         }
         catch (error) {
-            console.error("Erro ao modificar o sftp.json:", error);
+            statusBarItem.text = 'SFTP: Erro ao ler configuração';
         }
-    }));
-    context.subscriptions.push(disposable, statusBarItem);
+    });
+}
+function toggleSFTPProfile() {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const workspaceFolder = (_a = vscode.workspace.workspaceFolders) === null || _a === void 0 ? void 0 : _a[0];
+        if (!workspaceFolder) {
+            vscode.window.showErrorMessage('Nenhuma pasta aberta para configurar o SFTP.');
+            return;
+        }
+        const configPath = path.join(workspaceFolder.uri.fsPath, '.vscode', 'sftp.json');
+        try {
+            const fileUri = vscode.Uri.file(configPath);
+            const fileContent = yield vscode.workspace.fs.readFile(fileUri);
+            let config = JSON.parse(fileContent.toString());
+            if (!config.profiles || typeof config.profiles !== 'object') {
+                vscode.window.showErrorMessage('Configuração de perfis inválida no sftp.json.');
+                return;
+            }
+            const profiles = Object.keys(config.profiles);
+            const currentIndex = profiles.indexOf(config.defaultProfile);
+            const nextIndex = (currentIndex + 1) % profiles.length;
+            config.defaultProfile = profiles[nextIndex];
+            const newContent = JSON.stringify(config, null, 4);
+            const uint8array = new TextEncoder().encode(newContent);
+            // Salva o arquivo utilizando a API do workspace.fs
+            yield vscode.workspace.fs.writeFile(fileUri, uint8array);
+            // Executa o comando sftp.setProfile para aplicar o perfil selecionado
+            yield vscode.commands.executeCommand('sftp.setProfile', config.defaultProfile);
+            // Atualiza o texto da barra de status
+            updateButtonText();
+        }
+        catch (error) {
+            vscode.window.showErrorMessage(`Erro ao modificar o sftp.json: ${error.message}`);
+        }
+    });
 }
 function deactivate() { }
